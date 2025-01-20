@@ -1,0 +1,130 @@
+// api/query.js
+import fetch from 'node-fetch';
+
+// 辅助函数：将时间戳转换为可读时间
+function convertTimestampToDate(timestamp) {
+  const date = new Date(timestamp * 1000);  // 时间戳单位是秒，所以乘以1000
+  return date.toLocaleString();  // 返回格式化后的日期和时间字符串
+}
+
+// 辅助函数：将 Lamports 转换为 SOL
+function convertLamportsToSOL(lamports) {
+  return (lamports / 1e9).toFixed(9);  // 将 Lamports 转换为 SOL，保留 9 位小数
+}
+
+// 判断交易时间的差异并计算活跃的天数、周数、月数
+function getActiveDuration(transactions) {
+  const currentTime = new Date().getTime();
+  
+  // 获取所有交易的时间戳，并转换为本地日期（去重）
+  const transactionDates = new Set(transactions.map(tx => {
+    const txDate = new Date(tx.blockTime * 1000);
+    return txDate.toLocaleDateString();  // 转换为 'YYYY/MM/DD' 格式
+  }));
+  
+  // 活跃天数是交易日期的去重数量
+  const activeDays = transactionDates.size;
+  
+  // 计算活跃周数（按每周的周一为标准）
+  const activeWeeks = new Set(transactions.map(tx => {
+    const txDate = new Date(tx.blockTime * 1000);
+    // 获取每周的周一日期
+    const startOfWeek = new Date(txDate.setDate(txDate.getDate() - txDate.getDay()));
+    return startOfWeek.toLocaleDateString();  // 返回周一的日期
+  }));
+
+  // 活跃周数
+  const activeWeeksCount = activeWeeks.size;
+
+  // 计算活跃月数（按每月的月份为标准）
+  const activeMonths = new Set(transactions.map(tx => {
+    const txDate = new Date(tx.blockTime * 1000);
+    return `${txDate.getFullYear()}-${txDate.getMonth() + 1}`;  // 返回 'YYYY-MM' 格式
+  }));
+
+  // 活跃月数
+  const activeMonthsCount = activeMonths.size;
+
+  return {
+    days: activeDays,
+    weeks: activeWeeksCount,
+    months: activeMonthsCount
+  };
+}
+
+// 查询账户的代币余额
+async function getTokenBalance(address) {
+  const apiUrl = `https://api.eclipsescan.xyz/v1/account/tokens?address=${address}`;
+  const apiResponse = await fetch(apiUrl);
+  const data = await apiResponse.json();
+
+  if (data.success) {
+    return data.data.tokens.map(token => ({
+      tokenName: token.tokenName,
+      tokenSymbol: token.tokenSymbol,
+      balance: token.balance,
+      value: token.value.toFixed(2),  // 保留 2 位小数
+      tokenIcon: token.tokenIcon
+    }));
+  } else {
+    return [];
+  }
+}
+
+// 查询账户的交易记录
+async function getTransactionCount(address) {
+  const apiUrl = `https://api.eclipsescan.xyz/v1/account/transaction?address=${address}&page_size=40`;
+  const apiResponse = await fetch(apiUrl);
+  const data = await apiResponse.json();
+
+  if (data.success && data.data.transactions) {
+    return data.data.transactions;  // 返回交易记录
+  } else {
+    return [];
+  }
+}
+
+export default async function handler(req, res) {
+  if (req.method === 'POST') {
+    try {
+      const addresses = req.body.addresses;  // 从请求体中获取地址列表
+      if (!addresses || addresses.length === 0) {
+        return res.status(400).json({ error: "No addresses provided" });  // 如果没有提供地址，返回 400 错误
+      }
+
+      const results = [];
+      for (const address of addresses) {
+        const apiUrl = `https://api.eclipsescan.xyz/v1/account?address=${address}`;
+        const apiResponse = await fetch(apiUrl);
+        const data = await apiResponse.json();
+
+        if (data.success) {
+          const transactions = await getTransactionCount(address);
+
+          const activeDuration = getActiveDuration(transactions);
+
+          const accountInfo = {
+            account: data.data.account,
+            domain: data.metadata.accounts[data.data.account]?.account_domain || "无",
+            firstDepositTime: convertTimestampToDate(data.data.firstDeposit?.blockTime) || "无",
+            lamports: convertLamportsToSOL(data.data.lamports) || "无",
+            tokens: await getTokenBalance(address),  // 获取代币余额
+            transactionCount: transactions.length,  // 交易次数
+            activeDuration  // 返回活跃时间
+          };
+          results.push(accountInfo);
+        } else {
+          results.push({ error: `Failed to fetch data for ${address}` });
+        }
+      }
+
+      res.status(200).json(results);  // 返回所有查询结果
+
+    } catch (error) {
+      console.error("Error during request handling:", error);
+      res.status(500).json({ error: "Internal Server Error" });  // 处理异常
+    }
+  } else {
+    res.status(405).json({ error: "Method Not Allowed" });  // 只允许 POST 请求
+  }
+}
