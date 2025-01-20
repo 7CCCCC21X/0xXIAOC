@@ -53,7 +53,7 @@
       document.getElementById('result').innerHTML = "正在查询...";
 
       let promises = addresses.map(address => {
-        const apiUrl = 'http://localhost:3001/api/query';
+        const apiUrl = '/api/query';
 
         // 发送请求到后端
         return fetch(apiUrl, {
@@ -72,9 +72,9 @@
               domain: accountInfo.domain || "无",
               firstDepositTime: accountInfo.firstDepositTime || "无",
               lamports: accountInfo.lamports || "无",
-              tokens: accountInfo.tokens || [],  // 获取代币信息
-              transactionCount: accountInfo.transactionCount || "无", // 交易次数
-              activeDuration: accountInfo.activeDuration || { days: 0, weeks: 0, months: 0 } // 活跃时长
+              tokens: accountInfo.tokens || [],
+              transactionCount: accountInfo.transactionCount || "无",
+              activeDuration: accountInfo.activeDuration || { days: 0, weeks: 0, months: 0 }
             };
           } else {
             return { account: address.trim(), error: "查询失败，出现错误" };
@@ -96,7 +96,7 @@
                   <th>账户地址</th>
                   <th>域名</th>
                   <th>首次存款时间</th>
-                  <th>账户余额 (ETH)</th>  <!-- 将 SOL 修改为 ETH -->
+                  <th>账户余额 (ETH)</th>
                   <th>代币余额</th>
                   <th>交易次数</th>
                   <th>活跃天数</th>
@@ -107,7 +107,6 @@
               <tbody>
           `;
 
-          // 渲染每个结果
           results.forEach(result => {
             html += `
               <tr>

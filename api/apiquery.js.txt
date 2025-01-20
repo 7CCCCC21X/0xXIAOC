@@ -1,0 +1,114 @@
+import fetch from 'node-fetch';
+
+// 辅助函数：将时间戳转换为可读时间
+function convertTimestampToDate(timestamp) {
+  const date = new Date(timestamp * 1000);
+  return date.toLocaleString();
+}
+
+// 辅助函数：将 Lamports 转换为 SOL
+function convertLamportsToSOL(lamports) {
+  return (lamports / 1e9).toFixed(9);
+}
+
+// 判断交易时间的差异并计算活跃的天数、周数、月数
+function getActiveDuration(transactions) {
+  const transactionDates = new Set(
+    transactions.map(tx => new Date(tx.blockTime * 1000).toLocaleDateString())
+  );
+
+  const activeDays = transactionDates.size;
+
+  const activeWeeks = new Set(
+    [...transactionDates].map(dateString => {
+      const date = new Date(dateString);
+      const startOfWeek = new Date(date.setDate(date.getDate() - date.getDay()));
+      return startOfWeek.toLocaleDateString();
+    })
+  );
+
+  const activeMonths = new Set(
+    [...transactionDates].map(dateString => {
+      const date = new Date(dateString);
+      return `${date.getFullYear()}-${date.getMonth() + 1}`;
+    })
+  );
+
+  return {
+    days: activeDays,
+    weeks: activeWeeks.size,
+    months: activeMonths.size
+  };
+}
+
+// 查询账户的代币余额
+async function getTokenBalance(address) {
+  const apiUrl = `https://api.eclipsescan.xyz/v1/account/tokens?address=${address}`;
+  const response = await fetch(apiUrl);
+  const data = await response.json();
+
+  if (data.success) {
+    return data.data.tokens.map(token => ({
+      tokenName: token.tokenName,
+      tokenSymbol: token.tokenSymbol,
+      balance: token.balance,
+      value: token.value.toFixed(2),
+      tokenIcon: token.tokenIcon
+    }));
+  } else {
+    return [];
+  }
+}
+
+// 查询账户的交易记录
+async function getTransactionCount(address) {
+  const apiUrl = `https://api.eclipsescan.xyz/v1/account/transaction?address=${address}&page_size=40`;
+  const response = await fetch(apiUrl);
+  const data = await response.json();
+
+  return data.success && data.data.transactions ? data.data.transactions : [];
+}
+
+// Vercel Serverless Function 处理器
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method Not Allowed' });
+    return;
+  }
+
+  const { addresses } = req.body;
+  if (!Array.isArray(addresses) || addresses.length === 0) {
+    res.status(400).json({ error: 'No addresses provided' });
+    return;
+  }
+
+  try {
+    const results = await Promise.all(
+      addresses.map(async address => {
+        const apiUrl = `https://api.eclipsescan.xyz/v1/account?address=${address}`;
+        const response = await fetch(apiUrl);
+        const data = await response.json();
+
+        if (data.success) {
+          const transactions = await getTransactionCount(address);
+          return {
+            account: data.data.account,
+            domain: data.metadata.accounts[data.data.account]?.account_domain || '无',
+            firstDepositTime: convertTimestampToDate(data.data.firstDeposit?.blockTime) || '无',
+            lamports: convertLamportsToSOL(data.data.lamports) || '无',
+            tokens: await getTokenBalance(address),
+            transactionCount: transactions.length,
+            activeDuration: getActiveDuration(transactions)
+          };
+        } else {
+          return { error: `Failed to fetch data for ${address}` };
+        }
+      })
+    );
+
+    res.status(200).json(results);
+  } catch (error) {
+    console.error('Error during request handling:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+}

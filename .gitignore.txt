@@ -1,0 +1,66 @@
+# 忽略 Node.js 依赖目录
+node_modules/
+
+# 忽略日志文件
+*.log
+
+# 忽略环境配置文件
+.env
+*.env
+
+# 忽略操作系统文件（Windows、macOS、Linux）
+Thumbs.db
+.DS_Store
+
+# 忽略操作系统的缓存文件
+.vscode/
+.idea/
+
+# 忽略常见的 IDE 配置文件
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# 忽略 macOS 特有的文件
+.AppleDouble
+.LSOverride
+
+# 忽略 VS Code 和 IntelliJ IDEA 配置文件
+.vscode/
+.idea/
+
+# 忽略 JetBrains 和其它编辑器的文件
+*.iml
+*.iws
+*.ipr
+
+# 忽略 Windows 系统的文件夹和文件
+AppData/
+OneDrive/
+Desktop/
+Documents/
+Downloads/
+
+# 忽略 Git 配置文件
+.gitconfig
+
+# 忽略自定义配置文件
+*.npmrc
+*.yarnrc
+*.bashrc
+
+# 忽略其他系统文件
+ntuser.dat*
+ntuser.ini
+ntuser.dat.LOG1
+ntuser.dat.LOG2
+
+# 忽略编辑器历史记录文件
+.lesshst
+.node_repl_history
+
+# 忽略常见的备份文件
+*~
+*.bak
+*.swp
